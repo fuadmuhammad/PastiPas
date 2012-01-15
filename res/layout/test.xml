@@ -9,7 +9,7 @@
             android:id="@+id/header"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="SPBU Pasti Pas di sekitar anda"
+            android:text="Pasti Pas App"
             android:textAppearance="?android:attr/textAppearanceLarge" />
         
        <LinearLayout
@@ -25,13 +25,19 @@
 
             <Button
                 android:id="@+id/button1"
-                android:layout_width="93dp"
+                android:layout_width="92dp"
                 android:layout_height="wrap_content"
                 android:text="Search" />
+            
+            <Button
+                android:id="@+id/button2"
+                android:layout_width="92dp"
+                android:layout_height="wrap_content"
+                android:text="Terdekat" />
         </LinearLayout>
 
         <ListView
-            android:id="@+id/listView1"
+            android:id="@+id/daftar"
             android:layout_width="fill_parent"
             android:layout_height="320dp" >
         </ListView>

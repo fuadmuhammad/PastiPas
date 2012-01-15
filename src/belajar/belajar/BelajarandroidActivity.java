@@ -1,36 +1,39 @@
 package belajar.belajar;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
 import android.database.Cursor;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
-import android.widget.AdapterView;
-import android.widget.AdapterView.OnItemClickListener;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ListAdapter;
 import android.widget.ListView;
-import android.widget.SimpleCursorAdapter;
 
 public class BelajarandroidActivity extends Activity{
 	
 	private ListView list_spbu;
 	private DatabaseHelper db;
 	private EditText search_text;
-	private ListAdapter adapter;
-	private Activity that;
+	//private ListAdapter adapter;
+	//private Activity that;
 	private LocationManager locationManager;
+	private double curr_lat = 0 ;
+	private double curr_long = 0;
+	
 	
     /** Called when the activity is first created. */
     @Override
@@ -39,10 +42,8 @@ public class BelajarandroidActivity extends Activity{
         
         setContentView(R.layout.test);
         db = new DatabaseHelper(this);
-        list_spbu = (ListView)findViewById(R.id.listView1);
+        list_spbu = (ListView)findViewById(R.id.daftar);
         search_text = (EditText)findViewById(R.id.editText1);
-        
-        pastipas_search();
         
         Button button_search = (Button)findViewById(R.id.button1);
         button_search.setOnClickListener(new OnClickListener() {
@@ -52,9 +53,16 @@ public class BelajarandroidActivity extends Activity{
 			}
 		});
         
-        this.that = this;
+        Button terdekat_search = (Button)findViewById(R.id.button2);
+        terdekat_search.setOnClickListener(new OnClickListener(){
+        	public void onClick(View v){
+        		terdekat_search();
+        	}
+        });
         
-        list_spbu.setOnItemClickListener(new OnItemClickListener() {
+        //this.that = this;
+        
+        /*list_spbu.setOnItemClickListener(new OnItemClickListener() {
 
 			@Override
 			public void onItemClick(AdapterView<?> arg0, View arg1, int arg2,
@@ -66,7 +74,7 @@ public class BelajarandroidActivity extends Activity{
 				startActivity(intent);
 			}
         	
-		});
+		});*/
         
         
       locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
@@ -74,7 +82,9 @@ public class BelajarandroidActivity extends Activity{
       LocationListener locationListener = new LocationListener() {
     	 public void onLocationChanged(Location location) {
            // Called when a new location is found by the network location provider.
-        	// search_text.setText(""+location.getLatitude());
+        	//search_text.setText(""+location.getLatitude());
+        	curr_lat = location.getLatitude();
+        	curr_long = location.getLongitude();
          }
 
          public void onStatusChanged(String provider, int status, Bundle extras) {}
@@ -85,24 +95,88 @@ public class BelajarandroidActivity extends Activity{
       };
 
       Criteria criteria = new Criteria();
-      criteria.setAccuracy(Criteria.ACCURACY_FINE);
+      //criteria.setAccuracy(Criteria.ACCURACY_FINE);
       String provider_name = locationManager.getBestProvider(criteria, true);
-      //Location lastKnownLocation = locationManager.getLastKnownLocation(provider_name);
-      Location lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+      Location lastKnownLocation = locationManager.getLastKnownLocation(provider_name);
+      //Location lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
       //search_text.setText(""+lastKnownLocation.getLatitude());
+      this.curr_lat = lastKnownLocation.getLatitude();
+      this.curr_long = lastKnownLocation.getLongitude();
       locationManager.requestLocationUpdates(provider_name, 0, 0, locationListener);
+      
+      terdekat_search();
     }
     
     private void pastipas_search(){
     	String q = search_text.getText().toString();
-    	Cursor cursor = db.getReadableDatabase().rawQuery("select _id, no_spbu , alamat||' '||ref_gedung||' '||kota||' '||propinsi as alamat"+
-    											" FROM pastipas WHERE no_spbu LIKE ? OR alamat LIKE ? OR kota LIKE ? OR ref_gedung LIKE ? OR propinsi LIKE ? LIMIT 10", 
+    	Cursor cursor = db.getReadableDatabase().rawQuery("select _id, no_spbu , alamat||' '||ref_gedung||' '||kota||' '||propinsi as alamat, latitude, longitude"+
+    											" FROM pastipas WHERE no_spbu LIKE ? OR alamat LIKE ? OR kota LIKE ? OR ref_gedung LIKE ? OR propinsi LIKE ? LIMIT 10 ", 
                 new String[]{"%"+q+"%","%" + q + "%","%" + q + "%","%" + q + "%","%" + q + "%"});
     	
-		adapter = new SimpleCursorAdapter(this,R.layout.spbuitem, cursor, 
-   					new String[] {"no_spbu","alamat"}, new int[]{R.id.nama,R.id.alamat} );
-		list_spbu.setAdapter(adapter);
-		//cursor.close();
+    	
+    	
+    	TreeMap<String,List<String>> m= new TreeMap<String,List<String>>();
+    	DecimalFormat df = new DecimalFormat("0.00");
+    	while(cursor.moveToNext()){
+    		double latitude = cursor.getDouble(3);
+    		double longitude = cursor.getDouble(4);
+    		Double jarak_result = DistanceAlgorithm.distance(this.curr_long, this.curr_lat, longitude, latitude);
+    		
+    		if(jarak_result.isNaN()){
+    			continue;
+    		}
+    		List<String> l = new ArrayList<String>();
+    		l.add(cursor.getString(1));
+    		l.add(cursor.getString(2));
+    		m.put(df.format(jarak_result), l);
+    	}
+    	
+    	list_spbu.setAdapter(new SpbuDistanceAdapter(this,m));
+    }
+    
+    private void terdekat_search(){
+    	if(this.curr_lat ==0 || this.curr_long ==0){
+    		return;
+    	}
+    	Cursor cursor = db.getReadableDatabase().rawQuery("select _id, no_spbu , alamat||' '||ref_gedung||' '||kota||' '||propinsi as alamat, latitude, longitude FROM pastipas",new String[]{});
+    	    	
+    	TreeMap<Double,List<String>> m= new TreeMap<Double,List<String>>();
+    	DecimalFormat df = new DecimalFormat("0.00");
+    	while(cursor.moveToNext()){
+    		double latitude = cursor.getDouble(3);
+    		double longitude = cursor.getDouble(4);
+    		Double jarak_result = DistanceAlgorithm.distance(this.curr_long, this.curr_lat, longitude, latitude);
+    		
+    		if(jarak_result.isNaN()){
+    			continue;
+    		}
+    		
+    		List<String> l = new ArrayList<String>();
+    		l.add(cursor.getString(1));
+    		l.add(cursor.getString(2));
+    		m.put(jarak_result, l);
+    	}
+    	
+    	
+    	int i =1;
+    	
+    	TreeMap<String,List<String>> tree_map= new TreeMap<String,List<String>>();
+    	for(Double key:m.keySet()){
+    		List<String> entry = m.get(key);
+    		
+    		List<String> l = new ArrayList<String>();
+    		l.add(entry.get(0));
+    		l.add(entry.get(1));
+    		tree_map.put(df.format(key), l);
+    		i++;
+    		if(i>10){
+    			break;
+    		}
+    	}
+    	
+    	
+    	list_spbu.setAdapter(new SpbuDistanceAdapter(this,tree_map));
+    	
     }
 
 }
