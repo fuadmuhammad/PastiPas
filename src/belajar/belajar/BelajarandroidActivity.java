@@ -2,10 +2,7 @@ package belajar.belajar;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.TreeMap;
 
 import android.app.Activity;
@@ -16,7 +13,6 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
@@ -33,6 +29,7 @@ public class BelajarandroidActivity extends Activity{
 	private LocationManager locationManager;
 	private double curr_lat = 0 ;
 	private double curr_long = 0;
+	private TreeMap<String,List<String>> displayed_data;
 	
 	
     /** Called when the activity is first created. */
@@ -104,19 +101,28 @@ public class BelajarandroidActivity extends Activity{
       this.curr_long = lastKnownLocation.getLongitude();
       locationManager.requestLocationUpdates(provider_name, 0, 0, locationListener);
       
-      terdekat_search();
+      displayed_data = (TreeMap<String,List<String>>)getLastNonConfigurationInstance();
+      
+      if(displayed_data == null){
+    	  terdekat_search();  
+      }else{
+    	  list_spbu.setAdapter(new SpbuDistanceAdapter(this,displayed_data));
+      }
     }
     
     private void pastipas_search(){
     	String q = search_text.getText().toString();
+    	if(q.trim().length()==0){
+    		return;
+    	}
     	Cursor cursor = db.getReadableDatabase().rawQuery("select _id, no_spbu , alamat||' '||ref_gedung||' '||kota||' '||propinsi as alamat, latitude, longitude"+
     											" FROM pastipas WHERE no_spbu LIKE ? OR alamat LIKE ? OR kota LIKE ? OR ref_gedung LIKE ? OR propinsi LIKE ? LIMIT 10 ", 
                 new String[]{"%"+q+"%","%" + q + "%","%" + q + "%","%" + q + "%","%" + q + "%"});
     	
     	
     	
-    	TreeMap<String,List<String>> m= new TreeMap<String,List<String>>();
     	DecimalFormat df = new DecimalFormat("0.00");
+    	displayed_data = new TreeMap<String,List<String>>();
     	while(cursor.moveToNext()){
     		double latitude = cursor.getDouble(3);
     		double longitude = cursor.getDouble(4);
@@ -128,10 +134,10 @@ public class BelajarandroidActivity extends Activity{
     		List<String> l = new ArrayList<String>();
     		l.add(cursor.getString(1));
     		l.add(cursor.getString(2));
-    		m.put(df.format(jarak_result), l);
+    		displayed_data.put(df.format(jarak_result), l);
     	}
     	
-    	list_spbu.setAdapter(new SpbuDistanceAdapter(this,m));
+    	list_spbu.setAdapter(new SpbuDistanceAdapter(this,displayed_data));
     }
     
     private void terdekat_search(){
@@ -159,15 +165,14 @@ public class BelajarandroidActivity extends Activity{
     	
     	
     	int i =1;
-    	
-    	TreeMap<String,List<String>> tree_map= new TreeMap<String,List<String>>();
+    	displayed_data = new TreeMap<String,List<String>>();
     	for(Double key:m.keySet()){
     		List<String> entry = m.get(key);
     		
     		List<String> l = new ArrayList<String>();
     		l.add(entry.get(0));
     		l.add(entry.get(1));
-    		tree_map.put(df.format(key), l);
+    		displayed_data.put(df.format(key), l);
     		i++;
     		if(i>10){
     			break;
@@ -175,8 +180,12 @@ public class BelajarandroidActivity extends Activity{
     	}
     	
     	
-    	list_spbu.setAdapter(new SpbuDistanceAdapter(this,tree_map));
+    	list_spbu.setAdapter(new SpbuDistanceAdapter(this,displayed_data));
     	
+    }
+    
+    public Object onRetainNonConfigurationInstance() {
+        return displayed_data;
     }
 
 }
